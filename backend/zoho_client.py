@@ -13,10 +13,11 @@ class ZohoAPIError(Exception):
         super().__init__(f"Zoho API Error {status_code}: {message}")
 
 class ZohoClient:
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, portal_name: str = None):
         self.access_token = access_token
+        self.portal_name = portal_name or settings.ZOHO_PORTAL_NAME
         # Base URL pattern: https://projectsapi.zoho.com/restapi/portal/{portal_name}
-        self.base_url = f"{settings.ZOHO_PROJECTS_URL}/restapi/portal/{settings.ZOHO_PORTAL_NAME}".rstrip("/")
+        self.base_url = f"{settings.ZOHO_PROJECTS_URL}/restapi/portal/{self.portal_name}".rstrip("/")
         
         self.headers = {
             "Authorization": f"Zoho-oauthtoken {self.access_token}",

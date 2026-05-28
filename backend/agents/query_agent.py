@@ -10,7 +10,7 @@ _query_react_agent = None
 def get_query_agent():
     global _query_react_agent
     if _query_react_agent is None:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=settings.GEMINI_API_KEY, temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", google_api_key=settings.GEMINI_API_KEY, temperature=0, max_retries=1)
         _query_react_agent = create_react_agent(llm, tools=QUERY_TOOLS)
     return _query_react_agent
 
@@ -18,9 +18,13 @@ async def query_agent_node(state: dict):
     query_react_agent = get_query_agent()
     sys_msg = f"""You are a helpful Zoho Projects assistant. You help users query their projects and tasks.
 The current user_id is {state.get('user_id')}.
+
 {state.get('long_term_context', '')}
+(Note: You DO have memory. If the user asks what they worked on last time or their preferences, answer confidently using the "User context" provided above.)
+
 Currently active project: {state.get('active_project_name') or "none selected"}.
 When the user refers to "the first one", "that project", or "it", use the active project.
+If the user asks about a specific task, and no active project is selected, ask them which project it is in.
 Always be concise. Format task lists as readable text, not raw JSON."""
 
     input_messages = [SystemMessage(content=sys_msg)] + state["messages"]

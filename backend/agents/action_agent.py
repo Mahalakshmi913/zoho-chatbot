@@ -9,7 +9,7 @@ _llm_with_tools = None
 def get_action_llm():
     global _llm_with_tools
     if _llm_with_tools is None:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=settings.GEMINI_API_KEY, temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", google_api_key=settings.GEMINI_API_KEY, temperature=0, max_retries=1)
         _llm_with_tools = llm.bind_tools(ACTION_TOOLS)
     return _llm_with_tools
 

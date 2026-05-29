@@ -24,11 +24,21 @@ class ZohoClient:
             "Content-Type": "application/json"
         }
 
-    async def _request(self, method: str, path: str, **kwargs) -> Any:
+    async def _request(self, method: str, path: str, as_form: bool = False, **kwargs) -> Any:
         url = f"{self.base_url}/{path.lstrip('/')}"
         
+        headers = {
+            "Authorization": f"Zoho-oauthtoken {self.access_token}"
+        }
+        if not as_form:
+            headers["Content-Type"] = "application/json"
+        
+        # Merge explicitly provided headers (if any)
+        req_headers = kwargs.pop("headers", {})
+        headers.update(req_headers)
+        
         async with httpx.AsyncClient() as client:
-            response = await client.request(method, url, headers=self.headers, **kwargs)
+            response = await client.request(method, url, headers=headers, **kwargs)
             
             if response.status_code == 401:
                 raise ZohoAuthError("Unauthorized: Invalid or expired access token.")
@@ -45,10 +55,14 @@ class ZohoClient:
     async def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
         return await self._request("GET", path, params=params)
 
-    async def post(self, path: str, data: Dict[str, Any]) -> Any:
+    async def post(self, path: str, data: Dict[str, Any], as_form: bool = True) -> Any:
+        if as_form:
+            return await self._request("POST", path, as_form=True, data=data)
         return await self._request("POST", path, json=data)
 
-    async def patch(self, path: str, data: Dict[str, Any]) -> Any:
+    async def patch(self, path: str, data: Dict[str, Any], as_form: bool = True) -> Any:
+        if as_form:
+            return await self._request("PATCH", path, as_form=True, data=data)
         return await self._request("PATCH", path, json=data)
 
     async def delete(self, path: str) -> Any:

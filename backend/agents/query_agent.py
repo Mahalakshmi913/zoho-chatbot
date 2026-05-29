@@ -10,7 +10,7 @@ _query_react_agent = None
 def get_query_agent():
     global _query_react_agent
     if _query_react_agent is None:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", google_api_key=settings.GEMINI_API_KEY, temperature=0, max_retries=1)
+        llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", google_api_key=settings.GEMINI_API_KEY, temperature=0, max_retries=1)
         _query_react_agent = create_react_agent(llm, tools=QUERY_TOOLS)
     return _query_react_agent
 
@@ -55,4 +55,5 @@ Always be concise. Format task lists as readable text, not raw JSON."""
             updates["active_project_id"] = recent[1]["project_id"]
             updates["active_project_name"] = recent[1]["project_name"]
             
+    updates["active_agent"] = "query_agent"
     return updates

@@ -3,13 +3,8 @@ from typing import Optional
 from datetime import datetime
 
 from backend.config import settings
-from backend.auth.token_store import TokenStore
-from backend.auth.zoho_oauth import ZohoOAuth
+from backend.auth import token_store, oauth
 from backend.zoho_client import ZohoClient
-
-# Instantiate global dependencies for tools to use
-token_store = TokenStore(settings.DATABASE_URL)
-oauth = ZohoOAuth(token_store)
 
 async def _get_client(user_id: str) -> ZohoClient:
     """Helper to refresh token and get an authenticated ZohoClient."""
@@ -22,6 +17,10 @@ async def _get_client(user_id: str) -> ZohoClient:
 @tool
 async def list_projects(user_id: str) -> list[dict]:
     """Fetch all projects for the authenticated user."""
+    return await _fetch_all_projects(user_id)
+
+async def _fetch_all_projects(user_id: str) -> list[dict]:
+    """Plain async helper — no LangChain wrapper, safe to call from Python."""
     client = await _get_client(user_id)
     data = await client.get("projects/")
     projects = data.get("projects", [])[:20]
@@ -117,10 +116,12 @@ async def create_task(
     project_id: str, 
     task_name: str, 
     assignee_email: Optional[str] = None, 
+    start_date: Optional[str] = None,
     due_date: Optional[str] = None, 
     priority: Optional[str] = None
 ) -> dict:
-    """Create a new task in a given project."""
+    """Create a new task in a given project.
+    IMPORTANT: start_date and due_date MUST be in YYYY-MM-DD format."""
     client = await _get_client(user_id)
     
     # Zoho expects specific form-data or JSON structure. For simplicity, we use json.
@@ -131,13 +132,22 @@ async def create_task(
     # Note: resolving assignee_email to user_id might require a lookup, 
     # but some endpoints accept email or we can pass it if supported. 
     # For a robust version we'd use `list_project_members` to map email -> id.
-    if due_date:
-        # Convert YYYY-MM-DD to Zoho's typical MM-DD-YYYY
+    if start_date:
         try:
-            d = datetime.strptime(due_date, "%Y-%m-%d")
+            # Support both YYYY-MM-DD and YYYY/MM/DD just in case
+            clean_date = start_date.replace("/", "-")
+            d = datetime.strptime(clean_date, "%Y-%m-%d")
+            payload["start_date"] = d.strftime("%m-%d-%Y")
+        except ValueError:
+            raise ValueError(f"Invalid start_date format: '{start_date}'. The AI must provide it in YYYY-MM-DD format.")
+            
+    if due_date:
+        try:
+            clean_date = due_date.replace("/", "-")
+            d = datetime.strptime(clean_date, "%Y-%m-%d")
             payload["end_date"] = d.strftime("%m-%d-%Y")
-        except:
-            payload["end_date"] = due_date
+        except ValueError:
+            raise ValueError(f"Invalid due_date format: '{due_date}'. The AI must provide it in YYYY-MM-DD format.")
             
     if priority:
         payload["priority"] = priority.capitalize()
@@ -162,10 +172,12 @@ async def update_task(
     task_id: str, 
     status: Optional[str] = None, 
     assignee_email: Optional[str] = None, 
+    start_date: Optional[str] = None,
     due_date: Optional[str] = None, 
     priority: Optional[str] = None
 ) -> dict:
-    """Update task status, assignee, due date, or priority."""
+    """Update task status, assignee, start date, due date, or priority.
+    IMPORTANT: start_date and due_date MUST be in YYYY-MM-DD format."""
     client = await _get_client(user_id)
     payload = {}
     
@@ -173,12 +185,20 @@ async def update_task(
         payload["custom_status"] = status
     if priority:
         payload["priority"] = priority.capitalize()
+    if start_date:
+        try:
+            clean_date = start_date.replace("/", "-")
+            d = datetime.strptime(clean_date, "%Y-%m-%d")
+            payload["start_date"] = d.strftime("%m-%d-%Y")
+        except ValueError:
+            raise ValueError(f"Invalid start_date format: '{start_date}'. The AI must provide it in YYYY-MM-DD format.")
     if due_date:
         try:
-            d = datetime.strptime(due_date, "%Y-%m-%d")
+            clean_date = due_date.replace("/", "-")
+            d = datetime.strptime(clean_date, "%Y-%m-%d")
             payload["end_date"] = d.strftime("%m-%d-%Y")
-        except:
-            payload["end_date"] = due_date
+        except ValueError:
+            raise ValueError(f"Invalid due_date format: '{due_date}'. The AI must provide it in YYYY-MM-DD format.")
             
     # Zoho uses POST for updates typically on tasks endpoint. 
     # Actually, a POST to the specific task URL is standard.
@@ -285,4 +305,4 @@ async def get_task_utilisation(user_id: str, project_id: str) -> list[dict]:
 
 # Lists to be imported by agents
 QUERY_TOOLS = [list_projects, list_tasks, get_task_details, list_project_members, get_task_utilisation]
-ACTION_TOOLS = [create_task, update_task, delete_task]
+ACTION_TOOLS = [create_task, update_task, delete_task, list_projects]

@@ -16,6 +16,7 @@ class AgentState(TypedDict):
     confirmed: Optional[bool]
     long_term_context: str
     recent_projects: Optional[list[dict]]
+    active_agent: Optional[str]
 
 async def router_node(state: AgentState):
     pending = state.get("pending_action")
@@ -35,26 +36,29 @@ async def router_node(state: AgentState):
             # Default to cancel if not explicitly yes
             return {"confirmed": False}
             
-    # Clear invalid states if needed
-    if pending is not None and confirmed is not None:
-        return {"pending_action": None, "confirmed": None}
-        
     return {}
 
 def router_condition(state: AgentState) -> str:
     pending = state.get("pending_action")
-    messages = state.get("messages", [])
-    
     if pending is not None:
         # router_node just processed this and set confirmed to True/False
         # Route to action_agent to execute or cancel
         return "action_agent"
         
+    messages = state.get("messages", [])
+    active_agent = state.get("active_agent")
+    
     if messages:
         last_msg = messages[-1].content.lower()
         action_keywords = ["create", "add", "make", "update", "change", "delete", "remove", "assign"]
         if any(keyword in last_msg for keyword in action_keywords):
             return "action_agent"
+            
+        # If the action agent was active and asked a question in the previous turn
+        if active_agent == "action_agent" and len(messages) >= 2:
+            prev_msg = messages[-2].content.strip()
+            if prev_msg.endswith("?"):
+                return "action_agent"
             
     return "query_agent"
 
